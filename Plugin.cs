@@ -16,17 +16,17 @@ namespace JesterSymphony
     [BepInPlugin(PluginInfo.PLUGIN_GUID, PluginInfo.PLUGIN_NAME, PluginInfo.PLUGIN_VERSION)]
     public class Plugin : BaseUnityPlugin
     {
-        public AudioClip screaming;
-        public AudioClip windup;
+        internal AudioClip screaming;
+        internal AudioClip windup;
         private string[] screamingClips;
         private string[] windupClips;
-        public System.Random rand;
+        internal System.Random rand;
         internal static ManualLogSource LoggerInstance;
 
         private Harmony harmony = new Harmony(PluginInfo.PLUGIN_GUID);
 
 
-        public static Plugin Instance { get; private set; }
+        internal static Plugin Instance { get; private set; }
 
         private void Awake()
         {
