@@ -36,14 +36,14 @@ namespace JesterSymphony
             LoggerInstance = Logger;
 
             Logger.LogMessage("Loading Audio Files");
-            if (Directory.Exists(Paths.PluginPath + "/Skinner-JesterSymphony/Screaming"))
+            if (Directory.Exists(Paths.PluginPath + "/Sk737-JesterSymphony/Screaming"))
             {
-                var files = Directory.GetFiles(Paths.PluginPath + "/Skinner-JesterSymphony/Screaming").OrderBy(f => f);
+                var files = Directory.GetFiles(Paths.PluginPath + "/Sk737-JesterSymphony/Screaming").OrderBy(f => f);
                 screamingClips = files.ToArray();
             }
-            if (Directory.Exists(Paths.PluginPath + "/Skinner-JesterSymphony/Windup"))
+            if (Directory.Exists(Paths.PluginPath + "/Sk737-JesterSymphony/Windup"))
             {
-                var files = Directory.GetFiles(Paths.PluginPath + "/Skinner-JesterSymphony/Windup").OrderBy(f => f);
+                var files = Directory.GetFiles(Paths.PluginPath + "/Sk737-JesterSymphony/Windup").OrderBy(f => f);
                 windupClips = files.ToArray();
             }
             LoadNewClips();
