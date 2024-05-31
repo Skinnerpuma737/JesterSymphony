@@ -4,14 +4,14 @@ using BepInEx.Logging;
 using HarmonyLib;
 using JesterSymphony.Patches;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Networking;
-
+using Newtonsoft.Json;
 namespace JesterSymphony
 {
     [BepInPlugin(PluginInfo.PLUGIN_GUID, PluginInfo.PLUGIN_NAME, PluginInfo.PLUGIN_VERSION)]
@@ -33,6 +33,11 @@ namespace JesterSymphony
 
         internal static Plugin Instance { get; private set; }
 
+        internal List<LinkedSongs> LinkedSongs { get; set; } = new List<LinkedSongs>();
+
+        internal string ExecutingPath { get => Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location); }
+
+
         private void Awake()
         {
             // Plugin startup logic
@@ -43,21 +48,26 @@ namespace JesterSymphony
             LoggerInstance = Logger;
             
             Logger.LogMessage("Loading Audio Files");
-            if (Directory.Exists(Paths.PluginPath + "/Sk737-JesterSymphony/Screaming"))
+
+            //Paths.PluginPath + "/Sk737-JesterSymphony/Screaming"
+            if (Directory.Exists(ExecutingPath + "/Screaming"))
             {
-                var files = Directory.GetFiles(Paths.PluginPath + "/Sk737-JesterSymphony/Screaming").OrderBy(f => f);
+                var files = Directory.GetFiles(ExecutingPath + "/Screaming").OrderBy(f => f);
                 screamingClips = files.ToArray();
             }
-            if (Directory.Exists(Paths.PluginPath + "/Sk737-JesterSymphony/Windup"))
+            //Paths.PluginPath + "/Sk737-JesterSymphony/Windup"
+            if (Directory.Exists(ExecutingPath + "/Windup"))
             {
-                var files = Directory.GetFiles(Paths.PluginPath + "/Sk737-JesterSymphony/Windup").OrderBy(f => f);
+                var files = Directory.GetFiles(ExecutingPath + "/Windup").OrderBy(f => f);
                 windupClips = files.ToArray();
             }
-            if (Directory.Exists(Paths.PluginPath + "/Sk737-JesterSymphony/Popup"))
+            //Paths.PluginPath + "/Sk737-JesterSymphony/Popup"
+            if (Directory.Exists(ExecutingPath + "/Popup"))
             {
-                var files = Directory.GetFiles(Paths.PluginPath + "/Sk737-JesterSymphony/Popup").OrderBy(f => f);
+                var files = Directory.GetFiles(ExecutingPath + "/Popup").OrderBy(f => f);
                 popUpClips = files.ToArray();
             }
+            GetLinkedSongs();
             LoadNewClips();
             
             Logger.LogMessage("Patching");
@@ -70,29 +80,96 @@ namespace JesterSymphony
 
         public async void LoadNewClips()
         {
-            int selectionIndex = rand.Next(Config.IncludeDefaultScreaming.Value ? -1 : 0, screamingClips.Length);
-            if (selectionIndex >= 0 && screamingClips.Length > 0)
-                screaming = await LoadClip(screamingClips[selectionIndex]);
-            else
-                screaming = null;
+            int selectedScreaming = rand.Next(Config.IncludeDefaultScreaming.Value ? -1 : 0, screamingClips.Length);
+            int selectedWindup = rand.Next(Config.IncludeDefaultWindup.Value ? -1 : 0, windupClips.Length);
+            int selectedPopup = rand.Next(Config.IncludeDefaultPopUp.Value ? -1 : 0, popUpClips.Length);
 
-            selectionIndex = rand.Next(Config.IncludeDefaultWindup.Value ? -1 : 0, windupClips.Length);
-            if (selectionIndex >= 0 && windupClips.Length > 0)
-                windup = await LoadClip(windupClips[selectionIndex]);
+            if (selectedWindup >= 0 && windupClips.Length > 0)
+            {
+                int linkIndex = FindWindupInLinked(Path.GetFileName(windupClips[selectedWindup]));
+                if (linkIndex >= 0)
+                {
+                    linkIndex = FindSongInScreaming(LinkedSongs[linkIndex].ScreamingName);
+                    if (linkIndex >= 0)
+                    {
+                        selectedScreaming = linkIndex;
+                        Logger.LogMessage("Found Link!");
+                    }
+
+                }
+                windup = await LoadClip(windupClips[selectedWindup]);
+            }
             else
                 windup = null;
             
-            selectionIndex = rand.Next(Config.IncludeDefaultPopUp.Value ? -1 : 0, popUpClips.Length);
-            if (selectionIndex >= 0 && popUpClips.Length > 0)
-                popUp = await LoadClip(popUpClips[selectionIndex]);
+            if (selectedScreaming >= 0 && screamingClips.Length > 0)
+                screaming = await LoadClip(screamingClips[selectedScreaming]);
+            else
+                screaming = null;
+            
+            if (selectedPopup >= 0 && popUpClips.Length > 0)
+                popUp = await LoadClip(popUpClips[selectedPopup]);
             else
                 popUp = null;
 
         }
 
+        public int FindWindupInLinked(string name)
+        {
+            for (int i = 0; i < LinkedSongs.Count; i++)
+            {
+                if (Path.GetFileName(LinkedSongs[i].WindupName) == name)
+                    return i;
+            }
+            return -1;
+        }
+
+        public int FindSongInScreaming(string name)
+        {
+            for(int i = 0;i < screamingClips.Length;i++)
+            {
+                if (Path.GetFileName(screamingClips[i]) == name)
+                    return i;
+            }
+            return -1;
+        }
+
+        public void GetLinkedSongs()
+        {
+            try
+            {
+                if (!File.Exists(ExecutingPath + "/linkedSongs.json"))
+                {
+                    Logger.LogMessage("No linkfile found!");
+                    return;
+                }
+                string json = File.ReadAllText(ExecutingPath + "/linkedSongs.json");
+                LinkedSongs = JsonConvert.DeserializeObject<List<LinkedSongs>>(json);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex.Message);
+            }
+        }
+
+        public AudioType GetAudioType(string extension)
+        {
+            switch (extension)
+            {
+                default:
+                case ".ogg":
+                    return AudioType.OGGVORBIS;
+                case ".mp3":
+                    return AudioType.MPEG;
+                case ".wav":
+                    return AudioType.WAV;
+            }
+        }
+
         public async Task<AudioClip> LoadClip(string path)
         {
-            UnityWebRequest request = UnityWebRequestMultimedia.GetAudioClip(path, AudioType.OGGVORBIS);
+            AudioType type = GetAudioType(Path.GetExtension(path));
+            UnityWebRequest request = UnityWebRequestMultimedia.GetAudioClip(path, type);
             try
             {
                 request.SendWebRequest();
@@ -144,6 +221,12 @@ namespace JesterSymphony
                 "Allows the randomiser to pick the games PopUp sound"
                 );
         }
+    }
+
+    public struct LinkedSongs
+    {
+        public string WindupName { get; set; }
+        public string ScreamingName { get; set; }
     }
 }
 
